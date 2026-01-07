@@ -114,9 +114,6 @@ const Login = () => {
                   <Eye className="h-4 w-4" />
                   <AlertDescription className="text-sm">
                     <strong>User Access:</strong> View live seat occupancy and availability status
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Demo: user@example.com / user123
-                    </div>
                   </AlertDescription>
                 </Alert>
               </TabsContent>
@@ -126,9 +123,6 @@ const Login = () => {
                   <Shield className="h-4 w-4" />
                   <AlertDescription className="text-sm">
                     <strong>Manager Access:</strong> View analytics, manage monitoring locations, and configure system
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Demo: admin@crowdmonitor.com / admin@321
-                    </div>
                   </AlertDescription>
                 </Alert>
               </TabsContent>

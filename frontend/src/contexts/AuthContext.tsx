@@ -3,7 +3,6 @@ import { User, UserRole, AuthContextType } from '@/types/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock credentials for demo purposes
 const MOCK_CREDENTIALS = {
   manager: {
     email: 'admin@crowdmonitor.com',
@@ -58,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Check credentials based on role (demo/mock)
+    // Check credentials based on role
     const credentials = role === 'manager' ? MOCK_CREDENTIALS.manager : MOCK_CREDENTIALS.user;
     if (email === credentials.email && password === credentials.password) {
       const newUser: User = {
