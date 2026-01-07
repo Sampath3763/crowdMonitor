@@ -27,8 +27,8 @@ import { useToast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
 
 // Backend API URL
-const API_URL = 'http://localhost:3001';
-const SOCKET_URL = 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 let socket: Socket | null = null;
 

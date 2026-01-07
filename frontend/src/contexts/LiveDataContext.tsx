@@ -24,8 +24,8 @@ interface LiveDataContextType {
 const LiveDataContext = createContext<LiveDataContextType | undefined>(undefined);
 
 // Backend API URL
-const API_URL = 'http://localhost:3001';
-const SOCKET_URL = 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 let socket: Socket | null = null;
 

@@ -13,7 +13,7 @@ const Index = () => {
   const { seats, tables, hasLiveData, currentPlaceId, setCurrentPlaceId } = useLiveData();
   const [places, setPlaces] = useState<any[]>([]);
 
-  const API_URL = 'http://localhost:3001';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Fetch places from backend
   useEffect(() => {

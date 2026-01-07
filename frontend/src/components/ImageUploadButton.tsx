@@ -23,8 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Place } from '@/types/auth';
 import { io, Socket } from 'socket.io-client';
 
-const API_URL = 'http://localhost:3001';
-const SOCKET_URL = 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 let socket: Socket | null = null;
 
