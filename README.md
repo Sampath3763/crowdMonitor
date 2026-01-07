@@ -199,23 +199,6 @@ seat-smart-cam-main/
 
 ---
 
-## 🔧 Configuration
-
-### Backend Configuration (.env)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Backend server port | `3001` |
-| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/crowdmonitor` |
-| `FRONTEND_URL` | Frontend application URL | `http://localhost:8080` |
-| `NODE_ENV` | Environment mode | `development` |
-
-### Frontend Configuration
-
-The frontend is configured to connect to `http://localhost:3001` by default. This is set in the component files and contexts.
-
----
-
 ## 🔌 API Endpoints
 
 ### Places API
