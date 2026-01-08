@@ -5,15 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserRole } from '@/types/auth';
-import { Eye, Users, Shield, AlertCircle } from 'lucide-react';
+import { Shield, AlertCircle } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole>('user');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,9 +23,9 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password, selectedRole);
+      const success = await login(email, password, 'manager');
       if (success) {
-        navigate(selectedRole === 'manager' ? '/dashboard' : '/live-status');
+        navigate('/dashboard');
       } else {
         setError('Invalid credentials. Please try again.');
       }
@@ -38,8 +36,6 @@ const Login = () => {
     }
   };
 
-  
-
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -47,97 +43,67 @@ const Login = () => {
           <h1 className="text-4xl font-bold mb-2 bg-gradient-hero bg-clip-text text-transparent">
             CrowdMonitor
           </h1>
-          <p className="text-muted-foreground">Sign in to continue</p>
+          <p className="text-muted-foreground">Manager Sign In</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Choose your role and enter your credentials</CardDescription>
+            <CardTitle>Manager Sign In</CardTitle>
+            <CardDescription>Enter your manager credentials to access the dashboard</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={selectedRole} onValueChange={(value) => setSelectedRole(value as UserRole)}>
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="user" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  User
-                </TabsTrigger>
-                <TabsTrigger value="manager" className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  Manager
-                </TabsTrigger>
-              </TabsList>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Signing in...' : 'Sign In'}
-                </Button>
-
-                {/* Demo-fill button removed per request */}
-              </form>
-
-              <TabsContent value="user" className="mt-4">
-                <Alert>
-                  <Eye className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <strong>User Access:</strong> View live seat occupancy and availability status
-                  </AlertDescription>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
-              </TabsContent>
+              )}
 
-              <TabsContent value="manager" className="mt-4">
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <strong>Manager Access:</strong> View analytics, manage monitoring locations, and configure system
-                  </AlertDescription>
-                </Alert>
-              </TabsContent>
-            </Tabs>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Signing in...' : 'Sign In as Manager'}
+              </Button>
+            </form>
+
+            <div className="mt-4">
+              <Alert>
+                <Shield className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>Manager Access:</strong> View analytics, manage monitoring locations, and configure system
+                </AlertDescription>
+              </Alert>
+            </div>
           </CardContent>
         </Card>
 
         <div className="text-center mt-6 text-sm text-muted-foreground">
-          {selectedRole === 'user' ? (
-            <p>
-              Don't have an account? <button className="text-primary underline" onClick={() => navigate('/signup')}>Sign up</button>
-            </p>
-          ) : (
-            <p>Don't have an account? Contact your administrator.</p>
-          )}
+          <p>Don't have an account? Contact your administrator.</p>
         </div>
       </div>
     </div>

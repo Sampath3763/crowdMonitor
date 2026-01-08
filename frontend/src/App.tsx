@@ -10,7 +10,6 @@ import { NavigationHeader } from "./components/NavigationHeader";
 import { Chatbot } from "./components/Chatbot";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
 import LiveStatus from "./pages/LiveStatus";
 import Dashboard from "./pages/Dashboard";
 import ManagePlaces from "./pages/ManagePlaces";
@@ -43,14 +42,6 @@ const App = () => (
               element={
                 <PublicRoute>
                   <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                <PublicRoute>
-                  <Signup />
                 </PublicRoute>
               }
             />
