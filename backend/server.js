@@ -40,11 +40,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
+console.log('✅ Middleware configured: CORS and JSON parser');
+console.log(`🌐 CORS origin: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+
 app.get("/", (req, res) => {
   console.log('📥 GET / - Health check request');
   res.send("CrowdMonitor Backend is Running 🚀");
   console.log('📤 GET / - Sent health check response');
 });
+console.log('✅ Route registered: GET /');
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -212,6 +216,7 @@ const initializeLiveDataForPlaces = async () => {
 };
 
 // REST API Endpoints
+console.log('📋 Registering REST API endpoints...');
 
 // Get live seat data for a specific place
 app.get('/api/live-data/:placeId', async (req, res) => {
@@ -273,6 +278,7 @@ app.get('/api/live-data/:placeId', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: GET /api/live-data/:placeId');
 
 // Refresh/Fetch live seat data for a specific place (does NOT generate new data)
 app.post('/api/live-data/refresh/:placeId', async (req, res) => {
@@ -342,6 +348,7 @@ app.post('/api/live-data/refresh/:placeId', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: POST /api/live-data/refresh/:placeId');
 
 // Function to track occupancy history
 const trackOccupancy = async (placeId, placeName, seats) => {
@@ -925,6 +932,7 @@ app.get('/api/health', (req, res) => {
   });
   console.log(`📤 GET /api/health - Health check response: ${mongoStatus}`);
 });
+console.log('✅ Route registered: GET /api/health');
 
 // ============= OCCUPANCY HISTORY API ENDPOINTS =============
 
@@ -1034,6 +1042,7 @@ app.get('/api/occupancy-history/:placeId', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: GET /api/occupancy-history/:placeId');
 
 // ============= PLACES API ENDPOINTS =============
 
@@ -1051,6 +1060,7 @@ app.get('/api/places', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: GET /api/places');
 
 // Get single place by ID
 app.get('/api/places/:id', async (req, res) => {
@@ -1072,6 +1082,7 @@ app.get('/api/places/:id', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: GET /api/places/:id');
 
 // Create new place
 app.post('/api/places', async (req, res) => {
@@ -1122,6 +1133,7 @@ app.post('/api/places', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: POST /api/places');
 
 // Update place
 app.put('/api/places/:id', async (req, res) => {
@@ -1186,6 +1198,7 @@ app.put('/api/places/:id', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: PUT /api/places/:id');
 
 // Upload image file for a place
 app.post('/api/places/:id/upload-image', upload.single('image'), async (req, res) => {
@@ -1253,6 +1266,7 @@ app.post('/api/places/:id/upload-image', upload.single('image'), async (req, res
     res.status(500).json({ error: error.message || 'Server error' });
   }
 });
+console.log('✅ Route registered: POST /api/places/:id/upload-image');
 
 // Upload video file for a place
 app.post('/api/places/:id/upload-video', uploadVideo.single('video'), async (req, res) => {
@@ -1313,6 +1327,7 @@ app.post('/api/places/:id/upload-video', uploadVideo.single('video'), async (req
     res.status(500).json({ error: error.message || 'Server error' });
   }
 });
+console.log('✅ Route registered: POST /api/places/:id/upload-video');
 
 // Delete place
 app.delete('/api/places/:id', async (req, res) => {
@@ -1348,6 +1363,8 @@ app.delete('/api/places/:id', async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+console.log('✅ Route registered: DELETE /api/places/:id');
+console.log('✅ All REST API routes registered successfully');
 
 // Socket.IO Connection
 io.on('connection', (socket) => {
@@ -1411,9 +1428,29 @@ const PORT = process.env.PORT || 3001;
 
 connectDB().then(() => {
   server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Socket.IO ready for real-time updates`);
-    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
+    console.log('\n' + '='.repeat(60));
+    console.log('🚀 CrowdMonitor Backend Server Started Successfully');
+    console.log('='.repeat(60));
+    console.log(`📍 Server running on port ${PORT}`);
+    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+    console.log(`💾 MongoDB: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}`);
+    console.log(`📡 Socket.IO: Ready for real-time updates`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📋 API Base URL: http://localhost:${PORT}/api`);
+    console.log('\n📚 Available Routes:');
+    console.log('  GET    /');
+    console.log('  GET    /api/health');
+    console.log('  GET    /api/places');
+    console.log('  GET    /api/places/:id');
+    console.log('  POST   /api/places');
+    console.log('  PUT    /api/places/:id');
+    console.log('  DELETE /api/places/:id');
+    console.log('  POST   /api/places/:id/upload-image');
+    console.log('  POST   /api/places/:id/upload-video');
+    console.log('  GET    /api/live-data/:placeId');
+    console.log('  POST   /api/live-data/refresh/:placeId');
+    console.log('  GET    /api/occupancy-history/:placeId');
+    console.log('='.repeat(60) + '\n');
   });
 });
 
