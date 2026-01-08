@@ -41,7 +41,9 @@ app.use(cors({
 app.use(express.json());
 
 app.get("/", (req, res) => {
+  console.log('📥 GET / - Health check request');
   res.send("CrowdMonitor Backend is Running 🚀");
+  console.log('📤 GET / - Sent health check response');
 });
 
 // Serve static files from uploads directory
@@ -215,18 +217,24 @@ const initializeLiveDataForPlaces = async () => {
 app.get('/api/live-data/:placeId', async (req, res) => {
   try {
     const { placeId } = req.params;
+    console.log(`📥 GET /api/live-data/${placeId} - Fetching live data`);
     const liveData = await LiveData.findOne({ placeId });
+    console.log(`🗄️ Database query: LiveData.findOne({ placeId: ${placeId} }) - ${liveData ? 'Found' : 'Not found'}`);
 
     if (!liveData) {
       // If no live data exists, check if place has media
+      console.log(`⚠️ No live data found for placeId: ${placeId}, checking place existence`);
       const place = await Place.findById(placeId);
+      console.log(`🗄️ Database query: Place.findById(${placeId}) - ${place ? 'Found' : 'Not found'}`);
       if (!place) {
+        console.log(`❌ Place not found for placeId: ${placeId}`);
         return res.status(404).json({ error: 'Place not found' });
       }
 
       const hasMedia = Boolean(place.imageUrl && place.imageUrl.trim()) || Boolean(place.videoAnalyzed);
       if (!hasMedia) {
         // Return not-initialized response - no media uploaded yet
+        console.log(`ℹ️ No media uploaded for ${place.name}, returning not-initialized response`);
         return res.json({
           placeId: place._id.toString(),
           placeName: place.name,
@@ -239,6 +247,7 @@ app.get('/api/live-data/:placeId', async (req, res) => {
 
       // Media exists but analysis hasn't completed yet
       // Return not-initialized response and let image analysis create the data
+      console.log(`⏳ Media exists but analysis not completed for ${place.name}`);
       return res.json({
         placeId: place._id.toString(),
         placeName: place.name,
@@ -257,9 +266,10 @@ app.get('/api/live-data/:placeId', async (req, res) => {
       tables: liveData.tables,
       lastUpdate: liveData.lastUpdate,
     });
-    console.log(`📤 Sent live data for ${liveData.placeName} | Last updated: ${liveData.lastUpdate} | Occupied: ${liveData.seats.filter(s => s.occupied).length}/${liveData.seats.length}`);
+    console.log(`📤 GET /api/live-data/${placeId} - Sent live data for ${liveData.placeName} | Last updated: ${liveData.lastUpdate} | Occupied: ${liveData.seats.filter(s => s.occupied).length}/${liveData.seats.length}`);
   } catch (error) {
-    console.error('Error fetching live data:', error);
+    console.error(`❌ GET /api/live-data/${req.params.placeId} - Error fetching live data:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -268,15 +278,20 @@ app.get('/api/live-data/:placeId', async (req, res) => {
 app.post('/api/live-data/refresh/:placeId', async (req, res) => {
   try {
     const { placeId } = req.params;
+    console.log(`📥 POST /api/live-data/refresh/${placeId} - Refresh request received`);
     
     const place = await Place.findById(placeId);
+    console.log(`🗄️ Database query: Place.findById(${placeId}) - ${place ? 'Found' : 'Not found'}`);
     if (!place) {
+      console.log(`❌ Place not found for refresh: ${placeId}`);
       return res.status(404).json({ error: 'Place not found' });
     }
     
     // Check if place has media uploaded
     const hasMedia = Boolean(place.imageUrl && place.imageUrl.trim()) || Boolean(place.videoAnalyzed);
+    console.log(`📊 Media check for ${place.name}: hasMedia=${hasMedia}`);
     if (!hasMedia) {
+      console.log(`ℹ️ No media for ${place.name}, returning not-initialized response`);
       return res.json({
         placeId: place._id.toString(),
         placeName: place.name,
@@ -289,10 +304,12 @@ app.post('/api/live-data/refresh/:placeId', async (req, res) => {
 
     // Fetch EXISTING live data from database (do NOT generate new data)
     const liveData = await LiveData.findOne({ placeId });
+    console.log(`🗄️ Database query: LiveData.findOne({ placeId: ${placeId} }) - ${liveData ? 'Found' : 'Not found'}`);
     
     if (!liveData) {
       // No live data exists yet, return not initialized
       // Data will be generated when image analysis completes
+      console.log(`⚠️ No live data exists yet for ${place.name}`);
       return res.json({
         placeId: place._id.toString(),
         placeName: place.name,
@@ -313,13 +330,15 @@ app.post('/api/live-data/refresh/:placeId', async (req, res) => {
     };
     
     // Emit to all connected clients via WebSocket (sync existing data)
+    console.log(`📡 Emitting liveDataUpdated event for ${place.name}`);
     io.emit('liveDataUpdated', responseData);
     
     res.json(responseData);
     
-    console.log(`✅ Live data refreshed for ${place.name} and broadcast to all clients`);
+    console.log(`✅ POST /api/live-data/refresh/${placeId} - Live data refreshed for ${place.name} and broadcast to all clients`);
   } catch (error) {
-    console.error('Error refreshing live data:', error);
+    console.error(`❌ POST /api/live-data/refresh/${req.params.placeId} - Error refreshing live data:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -327,14 +346,17 @@ app.post('/api/live-data/refresh/:placeId', async (req, res) => {
 // Function to track occupancy history
 const trackOccupancy = async (placeId, placeName, seats) => {
   try {
+    console.log(`📊 Tracking occupancy for ${placeName} (placeId: ${placeId})`);
     const now = new Date();
     const currentHour = now.getHours();
     const occupiedSeats = seats.filter(s => s.occupied).length;
     const totalSeats = seats.length;
     const occupancyRate = (occupiedSeats / totalSeats) * 100;
+    console.log(`📈 Occupancy stats: ${occupiedSeats}/${totalSeats} seats (${occupancyRate.toFixed(1)}%) at hour ${currentHour}`);
     
     // Find or create history document for this place
     let history = await OccupancyHistory.findOne({ placeId });
+    console.log(`🗄️ Database query: OccupancyHistory.findOne({ placeId: ${placeId} }) - ${history ? 'Found' : 'Creating new'}`);
     
     if (!history) {
       // Initialize with empty hourly data
@@ -391,47 +413,71 @@ const trackOccupancy = async (placeId, placeName, seats) => {
     history.date = now;
     
     await history.save();
+    console.log(`✅ Occupancy history saved for ${placeName} | Avg: ${history.todayStats.avgOccupancy}% | Peak: ${history.todayStats.peakTime}`);
   } catch (error) {
-    console.error('Error tracking occupancy:', error);
+    console.error(`❌ Error tracking occupancy for ${placeName}:`, error.message);
+    console.error('Stack trace:', error.stack);
   }
 };
 
 // Improved image analysis (edge + skin-tone + brightness heuristic) to estimate occupancy
 const analyzeImageAndUpdateLiveData = async (placeId) => {
   try {
+    console.log(`🔍 Starting image analysis for placeId: ${placeId}`);
     const place = await Place.findById(placeId);
-    if (!place) return;
+    if (!place) {
+      console.log(`⚠️ Place not found for image analysis: ${placeId}`);
+      return;
+    }
 
     const imageUrl = place.imageUrl;
-    if (!imageUrl) return;
+    if (!imageUrl) {
+      console.log(`⚠️ No image URL for ${place.name}`);
+      return;
+    }
+    console.log(`📸 Analyzing image for ${place.name}: ${imageUrl}`);
 
     let buffer = null;
 
     // If it's a local upload, read from disk
     if (imageUrl.startsWith('/uploads/')) {
       const localPath = path.join(__dirname, imageUrl);
-      if (!fs.existsSync(localPath)) return;
+      console.log(`📂 Reading local image: ${localPath}`);
+      if (!fs.existsSync(localPath)) {
+        console.log(`⚠️ Local image file not found: ${localPath}`);
+        return;
+      }
       buffer = fs.readFileSync(localPath);
+      console.log(`✅ Local image loaded, size: ${buffer.length} bytes`);
     } else {
       // Try fetching remote image (best-effort)
       try {
+        console.log(`🌐 Fetching remote image: ${imageUrl}`);
         const resp = await fetch(imageUrl);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          console.log(`⚠️ Failed to fetch remote image, status: ${resp.status}`);
+          return;
+        }
         const arrayBuffer = await resp.arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
+        console.log(`✅ Remote image loaded, size: ${buffer.length} bytes`);
       } catch (err) {
-        console.warn('Could not fetch remote image for analysis:', err.message || err);
+        console.warn('❌ Could not fetch remote image for analysis:', err.message || err);
         return;
       }
     }
 
     // Load and downsize image for faster processing
+    console.log(`🖼️ Processing image with Jimp...`);
     const image = await Jimp.read(buffer);
     const targetWidth = 320; // small size for faster processing
+    const originalWidth = image.bitmap.width;
     if (image.bitmap.width > targetWidth) {
       image.resize(targetWidth, Jimp.AUTO);
+      console.log(`📏 Resized image from ${originalWidth}px to ${targetWidth}px width`);
     }
     const { width, height, data } = image.bitmap;
+    console.log(`📐 Image dimensions: ${width}x${height}px (${width * height} pixels)`);
 
     // Build grayscale array and do sampling
     const pixels = width * height;
@@ -527,6 +573,7 @@ const analyzeImageAndUpdateLiveData = async (placeId) => {
       }
     }
 
+    console.log(`💾 Updating LiveData in database for ${place.name}`);
     const updatedData = await LiveData.findOneAndUpdate(
       { placeId: place._id.toString() },
       {
@@ -536,9 +583,11 @@ const analyzeImageAndUpdateLiveData = async (placeId) => {
       },
       { new: true, upsert: true }
     );
+    console.log(`✅ LiveData updated for ${place.name}`);
 
     await trackOccupancy(place._id.toString(), place.name, updatedData.seats);
 
+    console.log(`📡 Emitting liveDataUpdated event for ${place.name}`);
     io.emit('liveDataUpdated', {
       placeId: updatedData.placeId,
       placeName: updatedData.placeName,
@@ -549,43 +598,56 @@ const analyzeImageAndUpdateLiveData = async (placeId) => {
 
     // Notify clients that a place's image analysis completed so they can refresh places/listings
     try {
+      console.log(`📡 Emitting placesUpdated event (image_analyzed) for ${place.name}`);
       io.emit('placesUpdated', { action: 'image_analyzed', place });
     } catch (err) {
-      console.warn('Could not emit placesUpdated for image analysis:', err.message || err);
+      console.warn('❌ Could not emit placesUpdated for image analysis:', err.message || err);
     }
 
     // Force refresh hint for clients (clients will refresh their currently selected place)
     try {
+      console.log(`📡 Emitting forceRefresh event for ${place.name}`);
       io.emit('forceRefresh', { placeId: updatedData.placeId });
     } catch (err) {
-      console.warn('Could not emit forceRefresh:', err.message || err);
+      console.warn('❌ Could not emit forceRefresh:', err.message || err);
     }
 
-    console.log(`🔎 Image analyzed for ${place.name} — est occupancy: ${occupancyPercent}% (${occupiedCount}/${capacity}) | edge=${edgeDensity.toFixed(3)} skin=${skinDensity.toFixed(3)} bright=${avgBrightness.toFixed(0)}`);
+    console.log(`🔎 ✅ Image analysis complete for ${place.name} — est occupancy: ${occupancyPercent}% (${occupiedCount}/${capacity}) | edge=${edgeDensity.toFixed(3)} skin=${skinDensity.toFixed(3)} bright=${avgBrightness.toFixed(0)}`);
   } catch (err) {
-    console.error('Error in analyzeImageAndUpdateLiveData:', err);
+    console.error(`❌ Error in analyzeImageAndUpdateLiveData for placeId ${placeId}:`, err.message);
+    console.error('Stack trace:', err.stack);
   }
 };
 
 // Process uploaded video: extract sample frames, analyze each frame, aggregate results and update live data
 const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
   try {
+    console.log(`🎬 Starting video processing for placeId: ${placeId}`);
+    console.log(`📹 Video path: ${videoPath}`);
     const place = await Place.findById(placeId);
-    if (!place) return;
+    if (!place) {
+      console.log(`⚠️ Place not found for video processing: ${placeId}`);
+      return;
+    }
+    console.log(`✅ Processing video for ${place.name}`);
 
     // Ensure video exists
     if (!fs.existsSync(videoPath)) {
-      console.warn('Video file does not exist for processing:', videoPath);
+      console.warn(`❌ Video file does not exist for processing: ${videoPath}`);
       return;
     }
+    const fileStats = fs.statSync(videoPath);
+    console.log(`📊 Video file size: ${(fileStats.size / (1024 * 1024)).toFixed(2)} MB`);
 
     // Create temporary directory for frames
     const tmpDir = path.join(__dirname, 'uploads', 'videos', `frames-${Date.now()}-${Math.round(Math.random()*1e6)}`);
+    console.log(`📂 Creating temporary directory for frames: ${tmpDir}`);
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Probe video duration
     let durationSec = 0;
     try {
+      console.log(`🔍 Probing video duration...`);
       const info = await new Promise((resolve, reject) => {
         ffmpeg.ffprobe(videoPath, (err, metadata) => {
           if (err) return reject(err);
@@ -593,8 +655,9 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
         });
       });
       durationSec = (info && info.format && info.format.duration) ? Math.floor(info.format.duration) : 0;
+      console.log(`⏱️ Video duration: ${durationSec} seconds`);
     } catch (err) {
-      console.warn('Could not get video duration, defaulting to sample strategy:', err.message || err);
+      console.warn('⚠️ Could not get video duration, defaulting to sample strategy:', err.message || err);
       durationSec = 0;
     }
 
@@ -612,6 +675,7 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
       // Unknown duration: fallback to 3 frames at 0s, 1s, 2s
       timestamps = [0, 1, 2].slice(0, maxFrames);
     }
+    console.log(`🎞️ Extracting ${timestamps.length} frames at timestamps: [${timestamps.join(', ')}]`);
 
     // Use ffmpeg to extract frames at timestamps
     const frameFiles = [];
@@ -632,24 +696,35 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
       console.warn('Frame extraction encountered an issue:', err.message || err);
     });
 
+    console.log(`✅ Frame extraction completed, checking files...`);
     // If frameFiles empty, try one full-frame extraction
     if (frameFiles.length === 0) {
+      console.log(`⚠️ No frames extracted, attempting fallback extraction`);
       const fallback = path.join(tmpDir, 'frame-0.jpg');
       try {
         await new Promise((resolve, reject) => {
           ffmpeg(videoPath).screenshots({ timestamps: ['00:00:00.000'], filename: path.basename(fallback), folder: tmpDir, size: '320x?' }).on('end', resolve).on('error', reject);
         });
         frameFiles.push(fallback);
+        console.log(`✅ Fallback frame extracted`);
       } catch (err) {
-        console.warn('Fallback frame extraction failed:', err.message || err);
+        console.warn('❌ Fallback frame extraction failed:', err.message || err);
       }
+    } else {
+      console.log(`✅ ${frameFiles.length} frame files ready for analysis`);
     }
 
     // Analyze each frame and compute occupancy percent
+    console.log(`🔬 Analyzing ${frameFiles.length} extracted frames...`);
     const occupancySamples = [];
-    for (const ff of frameFiles) {
+    for (let idx = 0; idx < frameFiles.length; idx++) {
+      const ff = frameFiles[idx];
       try {
-        if (!fs.existsSync(ff)) continue;
+        console.log(`📊 Analyzing frame ${idx + 1}/${frameFiles.length}: ${path.basename(ff)}`);
+        if (!fs.existsSync(ff)) {
+          console.log(`⚠️ Frame file not found: ${ff}`);
+          continue;
+        }
         const img = await Jimp.read(ff);
         // Reuse same analysis strategy as images but slightly lighter sampling
         const targetWidth = 320;
@@ -704,17 +779,21 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
         let occupancyPercent = 10 + Math.max(0, Math.min(1, score)) * 85;
         occupancyPercent = Math.max(5, Math.min(98, Math.round(occupancyPercent + (Math.random() - 0.5) * 6)));
         occupancySamples.push(occupancyPercent);
+        console.log(`  ✅ Frame ${idx + 1} analyzed: ${occupancyPercent}% occupancy (edge=${edgeScore.toFixed(2)}, skin=${skinScore.toFixed(2)})`);
       } catch (err) {
-        console.warn('Error analyzing frame:', ff, err.message || err);
+        console.warn(`❌ Error analyzing frame ${idx + 1}:`, ff, err.message || err);
       }
     }
 
     // Compute aggregate occupancy
     const finalOccupancy = occupancySamples.length > 0 ? Math.round(occupancySamples.reduce((a, b) => a + b, 0) / occupancySamples.length) : 0;
+    console.log(`📊 Aggregate occupancy from ${occupancySamples.length} frames: ${finalOccupancy}%`);
+    console.log(`📈 Sample occupancies: [${occupancySamples.join(', ')}]%`);
 
     // Update LiveData similar to image analysis
     const capacity = place.capacity || 20;
     const occupiedCount = Math.round((finalOccupancy / 100) * capacity);
+    console.log(`🪑 Calculating seats: ${occupiedCount}/${capacity} occupied`);
     const newSeats = generateSeats(capacity).map(s => ({ ...s, occupied: false }));
     const indices = Array.from({ length: capacity }, (_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
@@ -734,19 +813,24 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
       }
     }
 
+    console.log(`💾 Updating LiveData in database for ${place.name}`);
     const updatedData = await LiveData.findOneAndUpdate(
       { placeId: place._id.toString() },
       { seats: newSeats, tables: newTables, lastUpdate: new Date() },
       { new: true, upsert: true }
     );
+    console.log(`✅ LiveData updated for ${place.name}`);
 
     await trackOccupancy(place._id.toString(), place.name, updatedData.seats);
 
     // Mark place as analyzed for video
+    console.log(`🏷️ Marking place as video analyzed`);
     place.videoAnalyzed = true;
     place.videoUploadedAt = new Date();
     await place.save();
+    console.log(`✅ Place marked as video analyzed`);
 
+    console.log(`📡 Emitting liveDataUpdated event for ${place.name}`);
     io.emit('liveDataUpdated', {
       placeId: updatedData.placeId,
       placeName: updatedData.placeName,
@@ -755,26 +839,31 @@ const processVideoAndUpdateLiveData = async (placeId, videoPath) => {
       lastUpdate: updatedData.lastUpdate,
     });
 
+    console.log(`📡 Emitting placesUpdated event (video_analyzed) for ${place.name}`);
     io.emit('placesUpdated', { action: 'video_analyzed', place });
 
     // Force clients to refresh live data for this place (helps ensure all clients re-fetch from REST)
     try {
+      console.log(`📡 Emitting forceRefresh event for ${place.name}`);
       io.emit('forceRefresh', { placeId: updatedData.placeId });
     } catch (err) {
-      console.warn('Could not emit forceRefresh for video analysis:', err.message || err);
+      console.warn('❌ Could not emit forceRefresh for video analysis:', err.message || err);
     }
 
-    console.log(`🎬 Video analyzed for ${place.name} — est occupancy: ${finalOccupancy}% (${occupiedCount}/${capacity}) | samples=${occupancySamples.length}`);
+    console.log(`🎬 ✅ Video analysis complete for ${place.name} — est occupancy: ${finalOccupancy}% (${occupiedCount}/${capacity}) | samples=${occupancySamples.length}`);
 
     // Cleanup frames
     try {
+      console.log(`🧹 Cleaning up temporary frame files...`);
       for (const f of frameFiles) if (fs.existsSync(f)) fs.unlinkSync(f);
       if (fs.existsSync(tmpDir)) fs.rmdirSync(tmpDir, { recursive: true });
+      console.log(`✅ Cleanup completed`);
     } catch (err) {
-      console.warn('Error cleaning up frame files:', err.message || err);
+      console.warn('⚠️ Error cleaning up frame files:', err.message || err);
     }
   } catch (err) {
-    console.error('Error in processVideoAndUpdateLiveData:', err);
+    console.error(`❌ Error in processVideoAndUpdateLiveData for placeId ${placeId}:`, err.message);
+    console.error('Stack trace:', err.stack);
   }
 };
 
@@ -817,19 +906,24 @@ app.get('/api/occupancy-history/:placeId', async (req, res) => {
       todayStats: history.todayStats,
       peakHours,
     });
+    console.log(`📤 GET /api/occupancy-history/${req.params.placeId} - Sent history for ${history.placeName}`);
   } catch (error) {
-    console.error('Error fetching occupancy history:', error);
+    console.error(`❌ GET /api/occupancy-history/${req.params.placeId} - Error fetching occupancy history:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  console.log('📥 GET /api/health - Health check request');
+  const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({ 
     status: 'OK', 
     timestamp: new Date(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    mongodb: mongoStatus,
   });
+  console.log(`📤 GET /api/health - Health check response: ${mongoStatus}`);
 });
 
 // ============= OCCUPANCY HISTORY API ENDPOINTS =============
@@ -838,14 +932,18 @@ app.get('/api/health', (req, res) => {
 app.get('/api/occupancy-history/:placeId', async (req, res) => {
   try {
     const { placeId } = req.params;
+    console.log(`📥 GET /api/occupancy-history/${placeId} - Fetching occupancy history`);
     
     // Check if place exists
     const place = await Place.findById(placeId);
+    console.log(`🗄️ Database query: Place.findById(${placeId}) - ${place ? 'Found' : 'Not found'}`);
     if (!place) {
+      console.log(`❌ Place not found for occupancy history: ${placeId}`);
       return res.status(404).json({ error: 'Place not found' });
     }
     // If video hasn't been uploaded/analyzed yet, return zeros per dashboard requirement
     if (!place.videoAnalyzed) {
+      console.log(`ℹ️ Video not analyzed for ${place.name}, returning empty history`);
       return res.json({
         placeId: place._id.toString(),
         placeName: place.name,
@@ -862,8 +960,10 @@ app.get('/api/occupancy-history/:placeId', async (req, res) => {
     
     // Get or create occupancy history
     let history = await OccupancyHistory.findOne({ placeId });
+    console.log(`🗄️ Database query: OccupancyHistory.findOne({ placeId: ${placeId} }) - ${history ? 'Found' : 'Creating new'}`);
     
     if (!history) {
+      console.log(`📈 Creating mock occupancy history for ${place.name}`);
       // Create initial mock data with realistic peak times
       const mockHourlyData = Array.from({ length: 24 }, (_, hour) => {
         // Peak times: 12-2pm (lunch) and 6-8pm (dinner)
@@ -927,8 +1027,10 @@ app.get('/api/occupancy-history/:placeId', async (req, res) => {
       todayStats: history.todayStats,
       hourlyData: history.hourlyData,
     });
+    console.log(`📤 GET /api/occupancy-history/${placeId} - Sent history for ${history.placeName}`);
   } catch (error) {
-    console.error('Error fetching occupancy history:', error);
+    console.error(`❌ GET /api/occupancy-history/${req.params.placeId} - Error fetching occupancy history:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -938,10 +1040,14 @@ app.get('/api/occupancy-history/:placeId', async (req, res) => {
 // Get all places
 app.get('/api/places', async (req, res) => {
   try {
+    console.log('📥 GET /api/places - Fetching all places');
     const places = await Place.find().sort({ createdAt: -1 });
+    console.log(`🗄️ Database query: Place.find() - Found ${places.length} places`);
     res.json(places);
+    console.log(`📤 GET /api/places - Sent ${places.length} places`);
   } catch (error) {
-    console.error('Error fetching places:', error);
+    console.error('❌ GET /api/places - Error fetching places:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -949,15 +1055,20 @@ app.get('/api/places', async (req, res) => {
 // Get single place by ID
 app.get('/api/places/:id', async (req, res) => {
   try {
+    console.log(`📥 GET /api/places/${req.params.id} - Fetching place details`);
     const place = await Place.findById(req.params.id);
+    console.log(`🗄️ Database query: Place.findById(${req.params.id}) - ${place ? 'Found' : 'Not found'}`);
     
     if (!place) {
+      console.log(`❌ Place not found: ${req.params.id}`);
       return res.status(404).json({ error: 'Place not found' });
     }
     
     res.json(place);
+    console.log(`📤 GET /api/places/${req.params.id} - Sent place: ${place.name}`);
   } catch (error) {
-    console.error('Error fetching place:', error);
+    console.error(`❌ GET /api/places/${req.params.id} - Error fetching place:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -966,13 +1077,17 @@ app.get('/api/places/:id', async (req, res) => {
 app.post('/api/places', async (req, res) => {
   try {
     const { name, description, capacity, imageUrl } = req.body;
+    console.log(`📥 POST /api/places - Creating new place: ${name}`);
+    console.log(`📄 Place details: capacity=${capacity}, imageUrl=${imageUrl || 'none'}`);
     
     // Validation
     if (!name || !description || !capacity) {
+      console.log('⚠️ Validation failed: Missing required fields');
       return res.status(400).json({ error: 'All fields are required' });
     }
     
     if (capacity < 1) {
+      console.log('⚠️ Validation failed: Invalid capacity');
       return res.status(400).json({ error: 'Capacity must be at least 1' });
     }
     
@@ -983,22 +1098,27 @@ app.post('/api/places', async (req, res) => {
       imageUrl: imageUrl || '',
     });
     
+    console.log(`💾 Saving new place to database...`);
     await newPlace.save();
+    console.log(`✅ Place saved with ID: ${newPlace._id}`);
     
     // Broadcast to all connected clients
+    console.log(`📡 Emitting placesUpdated event (created) for ${name}`);
     io.emit('placesUpdated', { action: 'created', place: newPlace });
     
     // If manager provided an image, trigger analysis to generate live data
     if (newPlace.imageUrl && newPlace.imageUrl.trim()) {
+      console.log(`🖼️ Triggering image analysis for new place`);
       analyzeImageAndUpdateLiveData(newPlace._id.toString()).catch(err => 
-        console.error('Error analyzing new place image:', err)
+        console.error('❌ Error analyzing new place image:', err.message)
       );
     }
     
     res.status(201).json(newPlace);
-    console.log('✅ New place created:', name, `(${capacity} seats)`);
+    console.log(`📤 POST /api/places - ✅ New place created: ${name} (${capacity} seats)`);
   } catch (error) {
-    console.error('Error creating place:', error);
+    console.error('❌ POST /api/places - Error creating place:', error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1007,29 +1127,36 @@ app.post('/api/places', async (req, res) => {
 app.put('/api/places/:id', async (req, res) => {
   try {
     const { name, description, capacity, imageUrl } = req.body;
+    console.log(`📥 PUT /api/places/${req.params.id} - Updating place`);
+    console.log(`📄 Update data: name=${name || 'not provided'}, capacity=${capacity || 'not provided'}, imageUrl=${imageUrl !== undefined ? 'provided' : 'not provided'}`);
     
     // Build update object dynamically to allow partial updates
     const updateData = { updatedAt: new Date() };
     
     // If only imageUrl is provided (image upload case)
     if (imageUrl !== undefined && !name && !description && !capacity) {
+      console.log('ℹ️ Partial update: image URL only');
       updateData.imageUrl = imageUrl || '';
     } else {
       // Full update case (from manage places form)
       if (!name || !description || !capacity) {
+        console.log('⚠️ Validation failed: Missing required fields for full update');
         return res.status(400).json({ error: 'All fields are required for full update' });
       }
       
       if (capacity < 1) {
+        console.log('⚠️ Validation failed: Invalid capacity');
         return res.status(400).json({ error: 'Capacity must be at least 1' });
       }
       
+      console.log('ℹ️ Full update mode');
       updateData.name = name;
       updateData.description = description;
       updateData.capacity = capacity;
       updateData.imageUrl = imageUrl || '';
     }
     
+    console.log(`💾 Updating place in database...`);
     const updatedPlace = await Place.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -1037,20 +1164,25 @@ app.put('/api/places/:id', async (req, res) => {
     );
     
     if (!updatedPlace) {
+      console.log(`❌ Place not found: ${req.params.id}`);
       return res.status(404).json({ error: 'Place not found' });
     }
+    console.log(`✅ Place updated: ${updatedPlace.name}`);
     
     // Broadcast to all connected clients
+    console.log(`📡 Emitting placesUpdated event (updated) for ${updatedPlace.name}`);
     io.emit('placesUpdated', { action: 'updated', place: updatedPlace });
     
     res.json(updatedPlace);
-    console.log('✅ Place updated:', updatedPlace.name);
+    console.log(`📤 PUT /api/places/${req.params.id} - ✅ Place updated: ${updatedPlace.name}`);
     // If image was updated, run a quick analysis to estimate occupancy and update live data
     if (updateData.imageUrl) {
-      analyzeImageAndUpdateLiveData(updatedPlace._id.toString()).catch(err => console.error('Error analyzing image after update:', err));
+      console.log(`🖼️ Triggering image analysis after update`);
+      analyzeImageAndUpdateLiveData(updatedPlace._id.toString()).catch(err => console.error('❌ Error analyzing image after update:', err.message));
     }
   } catch (error) {
-    console.error('Error updating place:', error);
+    console.error(`❌ PUT /api/places/${req.params.id} - Error updating place:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1058,13 +1190,18 @@ app.put('/api/places/:id', async (req, res) => {
 // Upload image file for a place
 app.post('/api/places/:id/upload-image', upload.single('image'), async (req, res) => {
   try {
+    console.log(`📥 POST /api/places/${req.params.id}/upload-image - Image upload request`);
     if (!req.file) {
+      console.log('⚠️ No image file in request');
       return res.status(400).json({ error: 'No image file uploaded' });
     }
+    console.log(`📷 Image file received: ${req.file.filename} (${(req.file.size / 1024).toFixed(2)} KB)`);
 
     const place = await Place.findById(req.params.id);
+    console.log(`🗄️ Database query: Place.findById(${req.params.id}) - ${place ? 'Found' : 'Not found'}`);
     if (!place) {
       // Delete uploaded file if place not found
+      console.log(`❌ Place not found, deleting uploaded file`);
       fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: 'Place not found' });
     }
@@ -1080,32 +1217,39 @@ app.post('/api/places/:id/upload-image', upload.single('image'), async (req, res
 
     // Generate URL for the uploaded file
     const imageUrl = `/uploads/places/${req.file.filename}`;
+    console.log(`🔗 Generated image URL: ${imageUrl}`);
 
     // Update place with new image URL
+    console.log(`💾 Updating place with new image URL...`);
     const updatedPlace = await Place.findByIdAndUpdate(
       req.params.id,
       { imageUrl, updatedAt: new Date() },
       { new: true, runValidators: true }
     );
+    console.log(`✅ Place updated with new image`);
 
     // Broadcast to all connected clients
+    console.log(`📡 Emitting placesUpdated event (updated) for ${updatedPlace.name}`);
     io.emit('placesUpdated', { action: 'updated', place: updatedPlace });
 
     // Analyze uploaded image and update live data (best-effort)
-    analyzeImageAndUpdateLiveData(updatedPlace._id.toString()).catch(err => console.error('Error analyzing uploaded image:', err));
+    console.log(`🔍 Triggering image analysis for uploaded image`);
+    analyzeImageAndUpdateLiveData(updatedPlace._id.toString()).catch(err => console.error('❌ Error analyzing uploaded image:', err.message));
 
     res.json({
       message: 'Image uploaded successfully',
       place: updatedPlace,
       imageUrl: imageUrl
     });
-    console.log('✅ Image uploaded for place:', updatedPlace.name);
+    console.log(`📤 POST /api/places/${req.params.id}/upload-image - ✅ Image uploaded for place: ${updatedPlace.name}`);
   } catch (error) {
     // Clean up uploaded file on error
     if (req.file && fs.existsSync(req.file.path)) {
+      console.log(`❌ Error occurred, cleaning up uploaded file`);
       fs.unlinkSync(req.file.path);
     }
-    console.error('Error uploading image:', error);
+    console.error(`❌ POST /api/places/${req.params.id}/upload-image - Error uploading image:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: error.message || 'Server error' });
   }
 });
@@ -1113,13 +1257,18 @@ app.post('/api/places/:id/upload-image', upload.single('image'), async (req, res
 // Upload video file for a place
 app.post('/api/places/:id/upload-video', uploadVideo.single('video'), async (req, res) => {
   try {
+    console.log(`📥 POST /api/places/${req.params.id}/upload-video - Video upload request`);
     if (!req.file) {
+      console.log('⚠️ No video file in request');
       return res.status(400).json({ error: 'No video file uploaded' });
     }
+    console.log(`🎬 Video file received: ${req.file.filename} (${(req.file.size / (1024 * 1024)).toFixed(2)} MB)`);
 
     const place = await Place.findById(req.params.id);
+    console.log(`🗄️ Database query: Place.findById(${req.params.id}) - ${place ? 'Found' : 'Not found'}`);
     if (!place) {
       // Delete uploaded file if place not found
+      console.log(`❌ Place not found, deleting uploaded video`);
       fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: 'Place not found' });
     }
@@ -1134,24 +1283,33 @@ app.post('/api/places/:id/upload-video', uploadVideo.single('video'), async (req
     }
 
     const videoUrl = `/uploads/videos/${req.file.filename}`;
+    console.log(`🔗 Generated video URL: ${videoUrl}`);
 
+    console.log(`💾 Updating place with new video URL...`);
     const updatedPlace = await Place.findByIdAndUpdate(
       req.params.id,
       { videoUrl, videoUploadedAt: new Date(), videoAnalyzed: false, updatedAt: new Date() },
       { new: true, runValidators: true }
     );
+    console.log(`✅ Place updated with new video`);
 
     // Broadcast place update
+    console.log(`📡 Emitting placesUpdated event (video_uploaded) for ${updatedPlace.name}`);
     io.emit('placesUpdated', { action: 'video_uploaded', place: updatedPlace });
 
     // Process video asynchronously (best-effort)
-    processVideoAndUpdateLiveData(updatedPlace._id.toString(), req.file.path).catch(err => console.error('Error processing uploaded video:', err));
+    console.log(`🎬 Triggering video processing for uploaded video`);
+    processVideoAndUpdateLiveData(updatedPlace._id.toString(), req.file.path).catch(err => console.error('❌ Error processing uploaded video:', err.message));
 
     res.json({ message: 'Video uploaded, processing started', place: updatedPlace, videoUrl });
-    console.log('✅ Video uploaded for place:', updatedPlace.name);
+    console.log(`📤 POST /api/places/${req.params.id}/upload-video - ✅ Video uploaded for place: ${updatedPlace.name}`);
   } catch (error) {
-    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    console.error('Error uploading video:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      console.log(`❌ Error occurred, cleaning up uploaded video`);
+      fs.unlinkSync(req.file.path);
+    }
+    console.error(`❌ POST /api/places/${req.params.id}/upload-video - Error uploading video:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: error.message || 'Server error' });
   }
 });
@@ -1159,11 +1317,15 @@ app.post('/api/places/:id/upload-video', uploadVideo.single('video'), async (req
 // Delete place
 app.delete('/api/places/:id', async (req, res) => {
   try {
+    console.log(`📥 DELETE /api/places/${req.params.id} - Delete place request`);
     const deletedPlace = await Place.findByIdAndDelete(req.params.id);
+    console.log(`🗄️ Database query: Place.findByIdAndDelete(${req.params.id}) - ${deletedPlace ? 'Deleted' : 'Not found'}`);
     
     if (!deletedPlace) {
+      console.log(`❌ Place not found: ${req.params.id}`);
       return res.status(404).json({ error: 'Place not found' });
     }
+    console.log(`✅ Place deleted from database: ${deletedPlace.name}`);
 
     // Delete associated image file if it's a local file
     if (deletedPlace.imageUrl && deletedPlace.imageUrl.startsWith('/uploads/')) {
@@ -1175,12 +1337,14 @@ app.delete('/api/places/:id', async (req, res) => {
     }
     
     // Broadcast to all connected clients
+    console.log(`📡 Emitting placesUpdated event (deleted) for ${deletedPlace.name}`);
     io.emit('placesUpdated', { action: 'deleted', placeId: req.params.id });
     
     res.json({ message: 'Place deleted successfully', place: deletedPlace });
-    console.log('✅ Place deleted:', deletedPlace.name);
+    console.log(`📤 DELETE /api/places/${req.params.id} - ✅ Place deleted: ${deletedPlace.name}`);
   } catch (error) {
-    console.error('Error deleting place:', error);
+    console.error(`❌ DELETE /api/places/${req.params.id} - Error deleting place:`, error.message);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -1192,28 +1356,33 @@ io.on('connection', (socket) => {
   // Handle manual refresh from client for a specific place
   socket.on('requestRefresh', async (data) => {
     try {
+      console.log(`📡 Socket event 'requestRefresh' from ${socket.id}`);
       const { placeId } = data;
       
       if (!placeId) {
         console.error('❌ No placeId provided for refresh');
         return;
       }
+      console.log(`🔄 Refresh requested for placeId: ${placeId}`);
       
       const place = await Place.findById(placeId);
+      console.log(`🗄️ Database query: Place.findById(${placeId}) - ${place ? 'Found' : 'Not found'}`);
       if (!place) {
-        console.error('❌ Place not found:', placeId);
+        console.error(`❌ Place not found for refresh: ${placeId}`);
         return;
       }
       
       // Fetch existing live data (do NOT generate new data)
       const liveData = await LiveData.findOne({ placeId });
+      console.log(`🗄️ Database query: LiveData.findOne({ placeId: ${placeId} }) - ${liveData ? 'Found' : 'Not found'}`);
       
       if (!liveData) {
-        console.log('ℹ️ No live data available for:', place.name);
+        console.log(`ℹ️ No live data available for: ${place.name}`);
         return;
       }
       
       // Broadcast existing data to all clients (sync only, no modification)
+      console.log(`📡 Broadcasting existing data to all clients for ${place.name}`);
       io.emit('liveDataUpdated', {
         placeId: liveData.placeId,
         placeName: liveData.placeName,
@@ -1224,7 +1393,8 @@ io.on('connection', (socket) => {
       
       console.log(`✅ Existing data synced via WebSocket for ${place.name}`);
     } catch (error) {
-      console.error('Error refreshing data via WebSocket:', error);
+      console.error('❌ Error refreshing data via WebSocket:', error.message);
+      console.error('Stack trace:', error.stack);
     }
   });
   
