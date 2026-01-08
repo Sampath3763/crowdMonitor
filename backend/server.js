@@ -40,7 +40,14 @@ app.use(cors({
 }));
 app.use(express.json());
 
-console.log('✅ Middleware configured: CORS and JSON parser');
+// Request logging middleware - log ALL incoming requests
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url} - Headers: ${JSON.stringify(req.headers)}`);
+  next();
+});
+
+console.log('✅ Middleware configured: CORS, JSON parser, and request logger');
 console.log(`🌐 CORS origin: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
 
 app.get("/", (req, res) => {
@@ -1365,6 +1372,32 @@ app.delete('/api/places/:id', async (req, res) => {
 });
 console.log('✅ Route registered: DELETE /api/places/:id');
 console.log('✅ All REST API routes registered successfully');
+
+// 404 handler - log unmatched routes
+app.use((req, res, next) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.url}`);
+  console.log(`   Request origin: ${req.headers.origin || 'No origin'}`);
+  console.log(`   Request host: ${req.headers.host || 'No host'}`);
+  res.status(404).json({ 
+    error: 'Route not found',
+    method: req.method,
+    path: req.url,
+    availableRoutes: [
+      'GET /',
+      'GET /api/health',
+      'GET /api/places',
+      'GET /api/places/:id',
+      'POST /api/places',
+      'PUT /api/places/:id',
+      'DELETE /api/places/:id',
+      'POST /api/places/:id/upload-image',
+      'POST /api/places/:id/upload-video',
+      'GET /api/live-data/:placeId',
+      'POST /api/live-data/refresh/:placeId',
+      'GET /api/occupancy-history/:placeId'
+    ]
+  });
+});
 
 // Socket.IO Connection
 io.on('connection', (socket) => {
